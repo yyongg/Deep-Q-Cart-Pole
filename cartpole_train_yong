@@ -1,0 +1,145 @@
+"""
+train.py — Train a PPO agent on a custom CartPole env and save the model.
+"""
+
+import numpy as np
+import gymnasium as gym
+from gymnasium.wrappers import TimeLimit
+from gymnasium.envs.classic_control import CartPoleEnv
+from stable_baselines3 import PPO
+from stable_baselines3.common.env_util import make_vec_env
+
+
+# ---------------------------------------------------------------------------
+# Custom environment
+# ---------------------------------------------------------------------------
+
+class CustomCartPole(CartPoleEnv):
+    """CartPole with lower gravity, random velocity kicks during training,
+    and a dense shaping reward.  The pending_nudge slot lets the UI inject
+    impulses that the environment will consume on the next step."""
+
+    # Match this to NUDGE_STRENGTH in ui.py so the model sees realistic kicks.
+    DISTURBANCE_MAG = 1.5
+
+    def __init__(self, render_mode=None):
+        super().__init__(render_mode=render_mode)
+        self.gravity = 1.0   # softer gravity → slightly more forgiving
+        self.length = 0.5    # shorter pole  → faster tip dynamics
+        self.pending_nudge = 0.0
+
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+        # Start perfectly upright and stationary every episode.
+        self.state = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        self.pending_nudge = 0.0
+        return self.state.copy(), {}
+
+    def step(self, action):
+        # 1. Apply any externally-injected nudge (used by the UI).
+        self.state[3] += self.pending_nudge
+        self.pending_nudge = 0.0
+
+        # 2. Random disturbances — teaches robustness.
+        #
+        #    Previously only state[3] (pole angular velocity) was kicked.
+        #    Problem: the model never learned to counter lateral momentum,
+        #    so a UI nudge would send the cart drifting to the boundary
+        #    while the pole stayed level.
+        #
+        #    Fix: also kick state[1] (cart velocity) so the model learns
+        #    to reverse lateral drift before it reaches the rails.
+        if np.random.rand() < 0.1:
+            self.state[3] += np.random.uniform(          # pole angular vel
+                -self.DISTURBANCE_MAG, self.DISTURBANCE_MAG
+            )
+        if np.random.rand() < 0.1:
+            self.state[1] += np.random.uniform(          # cart velocity (NEW)
+                -self.DISTURBANCE_MAG, self.DISTURBANCE_MAG
+            )
+
+        obs, _reward, terminated, truncated, info = super().step(action)
+        cart_pos, cart_vel, pole_angle, pole_vel = obs
+
+        # Normalise each dimension to [0, 1] so the weights are directly
+        # comparable regardless of the different physical scales involved.
+        norm_angle    = abs(pole_angle) / 0.2095    # gymnasium failure threshold
+        norm_cart_pos = abs(cart_pos)  / 2.4         # gymnasium failure threshold
+        norm_cart_vel = min(abs(cart_vel) / 3.0, 1.0)  # soft-cap at 3 m/s
+
+        # 3. Dense shaping reward.
+        #
+        #   Previously: 0.9 * angle + 0.1 * pos  (no velocity term)
+        #   Problem:    the model treated cart drift as nearly free and had no
+        #               reason to shed momentum — so the cart cruised to the
+        #               boundary while the pole stayed level.
+        #
+        #   Fix: equal weight to angle and position, plus an explicit cart
+        #   velocity penalty that discourages momentum build-up.
+        reward = (
+            1.0
+            - 0.50 * norm_angle     # stay upright      (was dominant at 0.9)
+            - 0.35 * norm_cart_pos  # return to centre  (was negligible at 0.1)
+            - 0.15 * norm_cart_vel  # shed momentum before it's too late (NEW)
+        )
+
+        # 4. Termination penalty (applied after so it is not overwritten).
+        if terminated:
+            reward -= 25.0
+
+        # Always float32 for Stable-Baselines3.
+        obs = np.array(self.state, dtype=np.float32)
+        return obs, reward, terminated, truncated, info
+
+
+def make_env(render_mode=None):
+    env = CustomCartPole(render_mode=render_mode)
+    return TimeLimit(env, max_episode_steps=500)   # longer episodes → harder
+
+
+# ---------------------------------------------------------------------------
+# Training
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    # Vectorised envs speed up sample collection significantly.
+    N_ENVS = 4
+    vec_env = make_vec_env(make_env, n_envs=N_ENVS)
+
+    model = PPO(
+        "MlpPolicy",
+        vec_env,
+        verbose=1,
+        # --- tuned hyperparameters ---
+        learning_rate=3e-4,        # default; kept explicit for clarity
+        n_steps=2048,              # rollout length per env before each update
+        batch_size=64,
+        n_epochs=10,
+        gamma=0.99,
+        gae_lambda=0.95,
+        clip_range=0.2,
+        ent_coef=0.01,             # light entropy bonus encourages exploration
+        policy_kwargs=dict(net_arch=[128, 128]),  # slightly wider MLP
+    )
+
+    print("Training started …")
+    model.learn(total_timesteps=500_000)
+    print("Training finished!")
+
+    model.save("ppo_cartpole")
+    print("Model saved to ppo_cartpole.zip")
+    vec_env.close()
+
+    # -----------------------------------------------------------------------
+    # Quick visual evaluation (optional — comment out if running headless)
+    # -----------------------------------------------------------------------
+    eval_env = make_env(render_mode="human")
+    obs, _ = eval_env.reset()
+
+    for _ in range(2_000):
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, terminated, truncated, _ = eval_env.step(action)
+        if terminated or truncated:
+            obs, _ = eval_env.reset()
+
+    eval_env.close()
