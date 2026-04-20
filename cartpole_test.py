@@ -12,7 +12,7 @@ class MyCustomCartPole(CartPoleEnv):
         
         # Now, change whatever you want!
         self.gravity = 1.0  # Make it harder
-        self.length = .5  # Shorter pole
+        self.length = .75  # Shorter pole
         self.max_episode_steps = 25  # Longer episodes
     def reset(self, seed=None, options=None):
         # 1. Handle the random seed (important for reproducibility)
@@ -38,12 +38,16 @@ class MyCustomCartPole(CartPoleEnv):
         # For example, what if we wanted the game to end if the cart 
         # goes too far to the right (say, 1.0)?
         terminated = False
+        normalized_angle = ((pole_angle + np.pi) % (2 * np.pi)) - np.pi
         if abs(cart_pos) > 2.4: 
-            if cart_vel > 1:
-                reward -= 25
             terminated = True
-        reward += 1 - .9 * abs(pole_angle) - .1* abs(cart_pos)
-        print(reward)
+        reward = -(normalized_angle)**2 - (cart_pos)**2
+        if abs(normalized_angle < .75): 
+            reward -= .05*abs(pole_vel)
+        if abs(cart_pos) > 2.4: 
+            reward -= 10
+            terminated = True
+        print(normalized_angle, cart_pos, pole_vel)
         return next_obs, reward, terminated, truncated, info
 
 env = MyCustomCartPole()
@@ -55,7 +59,7 @@ model = PPO("MlpPolicy", env, verbose=1)
 print("Training started...")
 
 try: 
-    model.learn(total_timesteps=10000)
+    model.learn(total_timesteps=1000)
 except Exception as e:
     print(f"An error occurred: {e}")
 print("Training finished!")
