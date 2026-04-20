@@ -1,5 +1,7 @@
 """
-train.py — Train a PPO agent on a custom CartPole env and save the model.
+carpole_train_yong.py — Train a PPO agent on a custom CartPole env and save the model.
+This trains a model to learn how to respond to random nudges from the user rather than
+a model that learns how to swing up (cartpole_test.py).
 """
 
 import numpy as np
@@ -8,11 +10,6 @@ from gymnasium.wrappers import TimeLimit
 from gymnasium.envs.classic_control import CartPoleEnv
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
-
-
-# ---------------------------------------------------------------------------
-# Custom environment
-# ---------------------------------------------------------------------------
 
 class CustomCartPole(CartPoleEnv):
     """CartPole with lower gravity, random velocity kicks during training,
@@ -41,14 +38,6 @@ class CustomCartPole(CartPoleEnv):
         self.pending_nudge = 0.0
 
         # 2. Random disturbances — teaches robustness.
-        #
-        #    Previously only state[3] (pole angular velocity) was kicked.
-        #    Problem: the model never learned to counter lateral momentum,
-        #    so a UI nudge would send the cart drifting to the boundary
-        #    while the pole stayed level.
-        #
-        #    Fix: also kick state[1] (cart velocity) so the model learns
-        #    to reverse lateral drift before it reaches the rails.
         if np.random.rand() < 0.1:
             self.state[3] += np.random.uniform(          # pole angular vel
                 -self.DISTURBANCE_MAG, self.DISTURBANCE_MAG
@@ -60,22 +49,11 @@ class CustomCartPole(CartPoleEnv):
 
         obs, _reward, terminated, truncated, info = super().step(action)
         cart_pos, cart_vel, pole_angle, pole_vel = obs
-
-        # Normalise each dimension to [0, 1] so the weights are directly
-        # comparable regardless of the different physical scales involved.
         norm_angle    = abs(pole_angle) / 0.2095    # gymnasium failure threshold
         norm_cart_pos = abs(cart_pos)  / 2.4         # gymnasium failure threshold
         norm_cart_vel = min(abs(cart_vel) / 3.0, 1.0)  # soft-cap at 3 m/s
 
-        # 3. Dense shaping reward.
-        #
-        #   Previously: 0.9 * angle + 0.1 * pos  (no velocity term)
-        #   Problem:    the model treated cart drift as nearly free and had no
-        #               reason to shed momentum — so the cart cruised to the
-        #               boundary while the pole stayed level.
-        #
-        #   Fix: equal weight to angle and position, plus an explicit cart
-        #   velocity penalty that discourages momentum build-up.
+        # 3. velocity penalty that discourages momentum build-up.
         reward = (
             1.0
             - 0.50 * norm_angle     # stay upright      (was dominant at 0.9)
@@ -96,11 +74,6 @@ def make_env(render_mode=None):
     env = CustomCartPole(render_mode=render_mode)
     return TimeLimit(env, max_episode_steps=500)   # longer episodes → harder
 
-
-# ---------------------------------------------------------------------------
-# Training
-# ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
     # Vectorised envs speed up sample collection significantly.
     N_ENVS = 4
@@ -119,7 +92,7 @@ if __name__ == "__main__":
         gae_lambda=0.95,
         clip_range=0.2,
         ent_coef=0.01,             # light entropy bonus encourages exploration
-        policy_kwargs=dict(net_arch=[128, 128]),  # slightly wider MLP
+        policy_kwargs=dict(net_arch=[128, 128]),
     )
 
     print("Training started …")
@@ -130,9 +103,6 @@ if __name__ == "__main__":
     print("Model saved to ppo_cartpole.zip")
     vec_env.close()
 
-    # -----------------------------------------------------------------------
-    # Quick visual evaluation (optional — comment out if running headless)
-    # -----------------------------------------------------------------------
     eval_env = make_env(render_mode="human")
     obs, _ = eval_env.reset()
 
