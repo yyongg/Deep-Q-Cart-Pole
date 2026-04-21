@@ -21,8 +21,8 @@ class CustomCartPole(CartPoleEnv):
 
     def __init__(self, render_mode=None):
         super().__init__(render_mode=render_mode)
-        self.gravity = 1.0   # softer gravity → slightly more forgiving
-        self.length = 0.5    # shorter pole  → faster tip dynamics
+        self.gravity = 9.81
+        self.length = 1.0
         self.pending_nudge = 0.0
 
     def reset(self, seed=None, options=None):
@@ -55,15 +55,16 @@ class CustomCartPole(CartPoleEnv):
 
         # 3. velocity penalty that discourages momentum build-up.
         reward = (
-            1.0
-            - 0.50 * norm_angle     # stay upright      (was dominant at 0.9)
-            - 0.35 * norm_cart_pos  # return to centre  (was negligible at 0.1)
-            - 0.15 * norm_cart_vel  # shed momentum before it's too late (NEW)
+            3.0
+            - 0.50 * norm_angle
+            - 0.45 * norm_cart_pos
+            - 0.10 * norm_cart_vel
+            - 0.30 * max(cart_vel * cart_pos, 0) / (2.4 * 3.0)
         )
 
-        # 4. Termination penalty (applied after so it is not overwritten).
+        # 4. Termination penalty
         if terminated:
-            reward -= 25.0
+            reward -= 30.0
 
         # Always float32 for Stable-Baselines3.
         obs = np.array(self.state, dtype=np.float32)
