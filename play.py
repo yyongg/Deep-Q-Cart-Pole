@@ -41,9 +41,9 @@ try:
     while True:
         # Use deterministic=True for the 'best' performance
         action, _states = model.predict(obs, deterministic=True)
-        
+
         obs, reward, terminated, truncated, info = env.step(action)
-        
+
         # The environment handles rendering automatically because of 'human' mode
         if terminated or truncated:
             obs, info = env.reset()

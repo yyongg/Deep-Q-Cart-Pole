@@ -1,5 +1,5 @@
 """
-ui.py — Interactive CartPole viewer.
+cartpole_interface.py — Interactive CartPole viewer.
 
 Load the trained PPO model and let the user nudge the pole with arrow keys.
 This file contains NO training logic — it is inference-only.
@@ -24,14 +24,58 @@ class CustomCartPole(CartPoleEnv):
     def __init__(self):
         super().__init__(render_mode="rgb_array")
         self.gravity = 9.8
-        self.length  = 1
+        self.length  = 0.5
 
     def reset(self, seed=None, options=None):
+        """Reset the environment to a fixed upright starting state.
+
+        Overrides the default random initialisation so that every episode
+        begins with the cart and pole perfectly stationary at the origin.
+
+        Args:
+            seed (int | None): Random seed forwarded to the parent reset.
+                Has no practical effect here because the state is hard-coded,
+                but is accepted for API compatibility.
+            options (dict | None): Currently unused; accepted for API
+                compatibility with the Gymnasium interface.
+
+        Returns:
+            tuple[np.ndarray, dict]: A tuple of:
+                - obs (np.ndarray): Initial observation ``[0, 0, 0, 0]``
+                  representing cart position, cart velocity, pole angle, and
+                  pole angular velocity respectively.
+                - info (dict): Empty info dictionary.
+        """
         super().reset(seed=seed)
         self.state = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
         return self.state.copy(), {}
 
     def step(self, action):
+        """Advance the simulation by one timestep with a shaped reward.
+
+        Applies the given action via the parent ``step``, then replaces the
+        default binary (+1 / episode-end) reward with a dense signal that
+        penalises pole tilt, cart displacement, cart speed, and momentum
+        directed away from the centre.
+
+        Args:
+            action (int): Discrete action — ``0`` to push the cart left,
+                ``1`` to push the cart right.
+
+        Returns:
+            tuple[np.ndarray, float, bool, bool, dict]: A tuple of:
+                - obs (np.ndarray): Current observation
+                  ``[cart_pos, cart_vel, pole_angle, pole_vel]``.
+                - reward (float): Shaped reward in the range roughly
+                  ``(-26, 1]``; a penalty of ``-25`` is applied on
+                  termination.
+                - terminated (bool): ``True`` when the pole has fallen or the
+                  cart has left the track boundary.
+                - truncated (bool): ``True`` when the episode step limit is
+                  reached.
+                - info (dict): Auxiliary diagnostic information forwarded from
+                  the parent environment.
+        """
         obs, _reward, terminated, truncated, info = super().step(action)
 
         cart_pos, cart_vel, pole_angle, pole_vel = obs
@@ -39,7 +83,6 @@ class CustomCartPole(CartPoleEnv):
         norm_cart_pos = abs(cart_pos)  / 2.4         # gymnasium failure threshold
         norm_cart_vel = min(abs(cart_vel) / 3.0, 1.0)  # soft-cap at 3 m/s
 
-        # Identical reward to training so logged values are comparable.
         reward = (
             1.0
             - 0.50 * norm_angle
@@ -55,8 +98,8 @@ class CustomCartPole(CartPoleEnv):
 
 SCREEN_W, SCREEN_H = 700, 480
 FPS               = 60
-NUDGE_STRENGTH    = 0.5   # must match CustomCartPole.DISTURBANCE_MAG in training
-NUDGE_DISPLAY_TTL = 20    # frames the nudge label stays on screen
+NUDGE_STRENGTH    = 0.5
+NUDGE_DISPLAY_TTL = 20 
 
 # Colour palette
 BG_TOP    = (15,  20,  35)
@@ -69,22 +112,54 @@ GREY      = (120, 130, 150)
 PANEL_BG  = (0,   0,   0, 160)   # RGBA for transparent panel
 
 # Thresholds (matching gymnasium defaults)
-MAX_ANGLE  = 0.2095   # ~12 ° in radians
+MAX_ANGLE  = 0.2095
 MAX_CART   = 2.4
 
 
 def lerp_color(a, b, t):
+    """Linearly interpolate between two RGB colours.
+
+    Args:
+        a (tuple[int, int, int]): Starting RGB colour, e.g. ``(255, 0, 0)``.
+        b (tuple[int, int, int]): Ending RGB colour, e.g. ``(0, 255, 0)``.
+        t (float): Interpolation factor in ``[0.0, 1.0]`` where ``0.0``
+            returns ``a`` and ``1.0`` returns ``b``.
+
+    Returns:
+        tuple[int, int, int]: Interpolated RGB colour with integer components.
+    """
     return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
 
 
 def bar_color(fraction):
-    """Green → yellow → red as fraction goes 0 → 1."""
+    """Map a normalised fraction to a green → yellow → red colour gradient.
+
+    Args:
+        fraction (float): Value in ``[0.0, 1.0]`` representing how close a
+            sensor reading is to its danger threshold. ``0.0`` is safe
+            (green) and ``1.0`` is critical (red).
+
+    Returns:
+        tuple[int, int, int]: RGB colour corresponding to the given fraction.
+    """
     if fraction < 0.5:
         return lerp_color(GREEN, YELLOW, fraction * 2)
     return lerp_color(YELLOW, RED, (fraction - 0.5) * 2)
 
 
 def draw_gradient_bg(surface):
+    """Fill a surface with a vertical top-to-bottom gradient background.
+
+    Draws a gradient from ``BG_TOP`` at the top edge to ``BG_BOT`` at the
+    bottom edge, one horizontal line at a time.
+
+    Args:
+        surface (pygame.Surface): The Pygame surface to draw onto. Modified
+            in place.
+
+    Returns:
+        None
+    """
     for y in range(SCREEN_H):
         t = y / SCREEN_H
         color = lerp_color(BG_TOP, BG_BOT, t)
@@ -92,7 +167,29 @@ def draw_gradient_bg(surface):
 
 
 def draw_status_bar(surface, font_sm, label, value, max_val, x, y, w=160, h=14):
-    """Draw a labelled progress bar."""
+    """Draw a labelled horizontal progress bar at the specified position.
+
+    The filled portion of the bar is coloured via ``bar_color`` based on how
+    close ``value`` is to ``max_val``. A text label showing the raw value is
+    rendered immediately above the bar.
+
+    Args:
+        surface (pygame.Surface): The Pygame surface to draw onto.
+        font_sm (pygame.font.Font): Small font used to render the label text.
+        label (str): Short description shown before the numeric value,
+            e.g. ``"Cart "`` or ``"Angle"``.
+        value (float): Current sensor reading. Its absolute value is compared
+            against ``max_val`` to compute the fill fraction.
+        max_val (float): The threshold at which the bar becomes fully filled
+            (fraction = 1.0). Must be non-zero.
+        x (int): Left edge x-coordinate of the bar in pixels.
+        y (int): Top edge y-coordinate of the bar in pixels.
+        w (int): Width of the bar in pixels. Defaults to ``160``.
+        h (int): Height of the bar in pixels. Defaults to ``14``.
+
+    Returns:
+        None
+    """
     fraction = min(abs(value) / max_val, 1.0)
     color    = bar_color(fraction)
 
@@ -107,7 +204,35 @@ def draw_status_bar(surface, font_sm, label, value, max_val, x, y, w=160, h=14):
 
 def draw_hud(surface, fonts, episode, step, total_reward,
              cart_pos, pole_angle, nudge_ttl, last_nudge_dir):
-    """Draw the full HUD overlay."""
+    """Draw the full HUD overlay onto the given surface.
+
+    Renders a semi-transparent stats panel (episode, step, cumulative
+    reward), two sensor progress bars (cart position, pole angle), a
+    fading nudge indicator when the user has recently applied a kick, and
+    a keyboard-controls legend in the bottom-right corner.
+
+    Args:
+        surface (pygame.Surface): The Pygame surface to draw onto.
+        fonts (tuple[pygame.font.Font, pygame.font.Font]): A 2-tuple of
+            ``(font_lg, font_sm)`` where ``font_lg`` is used for stats and
+            nudge text, and ``font_sm`` is used for bar labels and the
+            controls legend.
+        episode (int): Current episode number, displayed in the stats panel.
+        step (int): Current step count within the episode.
+        total_reward (float): Cumulative shaped reward accumulated so far in
+            the current episode.
+        cart_pos (float): Current cart position in metres, used to fill the
+            cart-position sensor bar.
+        pole_angle (float): Current pole angle in radians, used to fill the
+            angle sensor bar.
+        nudge_ttl (int): Remaining display frames for the nudge indicator.
+            The indicator fades out as this value approaches ``0``.
+        last_nudge_dir (int): Direction of the most recent nudge: ``-1`` for
+            left, ``1`` for right. Used to choose the indicator label.
+
+    Returns:
+        None
+    """
     font_lg, font_sm = fonts
     pad = 14
 
@@ -150,10 +275,32 @@ def draw_hud(surface, fonts, episode, step, total_reward,
                          SCREEN_H - pad - (len(legend) - i) * 20))
 
 def main():
+    """Run the interactive CartPole visualisation loop.
+
+    Loads the trained PPO model from ``ppo_cartpole_yong_4-26.zip``, opens a Pygame
+    window, and enters the main game loop. On each frame the function:
+
+    1. Polls keyboard events — handling quit, manual reset, and held
+       left/right keys for pole nudging.
+    2. Applies any angular-velocity nudge directly to the environment state.
+    3. Queries the PPO policy for an action and steps the environment.
+    4. Renders the cart-pole frame, scales it to fill the window, and
+       overlays the HUD.
+    5. Automatically resets when an episode terminates or is truncated.
+
+    Returns:
+        None
+
+    Raises:
+        FileNotFoundError: If ``ppo_cartpole.zip`` cannot be found in the
+            current working directory when ``PPO.load`` is called.
+        pygame.error: If Pygame fails to initialise the display or font
+            subsystems (e.g. no available video driver).
+    """
     base_env = CustomCartPole()
     env      = TimeLimit(base_env, max_episode_steps=500)
 
-    model = PPO.load("ppo_cartpole", env=env)
+    model = PPO.load("ppo_cartpole_yong_4-26", env=env)
 
     # Pygame setup
     pygame.init()
@@ -194,8 +341,6 @@ def main():
             nudge_ttl      = NUDGE_DISPLAY_TTL
             last_nudge_dir = 1
 
-        # Apply nudge to raw state BEFORE the model sees it, so the agent
-        # responds to the post-nudge dynamics rather than the pre-nudge state.
         env.unwrapped.state[3] += pole_nudge
         obs = np.array(env.unwrapped.state, dtype=np.float32)
 
@@ -209,8 +354,8 @@ def main():
 
         draw_gradient_bg(screen)
 
-        frame = env.render()                           # (H, W, 3)
-        frame = np.transpose(frame, (1, 0, 2))         # pygame wants (W, H, 3)
+        frame = env.render()
+        frame = np.transpose(frame, (1, 0, 2))
         cart_surface = pygame.surfarray.make_surface(frame)
 
         cart_surface = pygame.transform.scale(cart_surface, (SCREEN_W, SCREEN_H))
