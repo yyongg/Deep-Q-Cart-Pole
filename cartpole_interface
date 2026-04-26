@@ -1,5 +1,5 @@
 """
-ui.py — Interactive CartPole viewer.
+cartpole_interface.py — Interactive CartPole viewer.
 
 Load the trained PPO model and let the user nudge the pole with arrow keys.
 This file contains NO training logic — it is inference-only.
@@ -39,7 +39,6 @@ class CustomCartPole(CartPoleEnv):
         norm_cart_pos = abs(cart_pos)  / 2.4         # gymnasium failure threshold
         norm_cart_vel = min(abs(cart_vel) / 3.0, 1.0)  # soft-cap at 3 m/s
 
-        # Identical reward to training so logged values are comparable.
         reward = (
             1.0
             - 0.50 * norm_angle
@@ -55,8 +54,8 @@ class CustomCartPole(CartPoleEnv):
 
 SCREEN_W, SCREEN_H = 700, 480
 FPS               = 60
-NUDGE_STRENGTH    = 0.5   # must match CustomCartPole.DISTURBANCE_MAG in training
-NUDGE_DISPLAY_TTL = 20    # frames the nudge label stays on screen
+NUDGE_STRENGTH    = 0.5
+NUDGE_DISPLAY_TTL = 20 
 
 # Colour palette
 BG_TOP    = (15,  20,  35)
@@ -69,7 +68,7 @@ GREY      = (120, 130, 150)
 PANEL_BG  = (0,   0,   0, 160)   # RGBA for transparent panel
 
 # Thresholds (matching gymnasium defaults)
-MAX_ANGLE  = 0.2095   # ~12 ° in radians
+MAX_ANGLE  = 0.2095
 MAX_CART   = 2.4
 
 
@@ -194,8 +193,6 @@ def main():
             nudge_ttl      = NUDGE_DISPLAY_TTL
             last_nudge_dir = 1
 
-        # Apply nudge to raw state BEFORE the model sees it, so the agent
-        # responds to the post-nudge dynamics rather than the pre-nudge state.
         env.unwrapped.state[3] += pole_nudge
         obs = np.array(env.unwrapped.state, dtype=np.float32)
 
@@ -209,8 +206,8 @@ def main():
 
         draw_gradient_bg(screen)
 
-        frame = env.render()                           # (H, W, 3)
-        frame = np.transpose(frame, (1, 0, 2))         # pygame wants (W, H, 3)
+        frame = env.render()
+        frame = np.transpose(frame, (1, 0, 2))
         cart_surface = pygame.surfarray.make_surface(frame)
 
         cart_surface = pygame.transform.scale(cart_surface, (SCREEN_W, SCREEN_H))
