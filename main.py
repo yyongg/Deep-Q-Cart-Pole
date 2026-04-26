@@ -1,5 +1,5 @@
 #Runs the entire simulation
-# import view
+import view
 import cartpole_interface
 
 # my_model = view.view()
