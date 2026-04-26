@@ -7,9 +7,10 @@ from gymnasium.envs.classic_control import CartPoleEnv
 class MyCustomCartPole(CartPoleEnv):
     def __init__(self, render_mode='human'):
         super().__init__(render_mode=render_mode)
-        self.gravity = 4
+        self.gravity = 9.8
         self.length = 0.75
         self.max_episode_steps = 500
+        self.masspole = 10
         
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
