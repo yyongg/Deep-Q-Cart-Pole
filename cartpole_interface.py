@@ -17,6 +17,7 @@ from gymnasium.wrappers import TimeLimit
 from gymnasium.envs.classic_control import CartPoleEnv
 from stable_baselines3 import PPO
 
+
 class CustomCartPole(CartPoleEnv):
     """Matches the physics used during training (gravity, pole length).
     No random disturbances here — those were only needed for training."""
@@ -24,7 +25,23 @@ class CustomCartPole(CartPoleEnv):
     def __init__(self):
         super().__init__(render_mode="rgb_array")
         self.gravity = 9.8
-        self.length  = 0.5
+        self.length = 0.5
+        self.masspole = 0  # default values
+
+    def set_parameters(self, length, weight):
+        """
+            Overides the length and weight with the given user input.
+
+        Args:
+            length: An integer that represents the length of the pole in meters
+
+            weight: An integer that represents the mass of the pole in kg
+
+            Returns:
+                None - sets class attributes of self.length and self.masspole to length and weight respectively
+        """
+        self.length = length
+        self.masspole = weight
 
     def reset(self, seed=None, options=None):
         """Reset the environment to a fixed upright starting state.
@@ -79,8 +96,8 @@ class CustomCartPole(CartPoleEnv):
         obs, _reward, terminated, truncated, info = super().step(action)
 
         cart_pos, cart_vel, pole_angle, pole_vel = obs
-        norm_angle    = abs(pole_angle) / 0.2095    # gymnasium failure threshold
-        norm_cart_pos = abs(cart_pos)  / 2.4         # gymnasium failure threshold
+        norm_angle = abs(pole_angle) / 0.2095  # gymnasium failure threshold
+        norm_cart_pos = abs(cart_pos) / 2.4  # gymnasium failure threshold
         norm_cart_vel = min(abs(cart_vel) / 3.0, 1.0)  # soft-cap at 3 m/s
 
         reward = (
@@ -91,29 +108,30 @@ class CustomCartPole(CartPoleEnv):
             - 0.30 * max(cart_vel * cart_pos, 0) / (2.4 * 3.0)
         )
         if terminated:
-            reward -= 25.0  
+            reward -= 25.0
 
         obs = np.array(self.state, dtype=np.float32)
         return obs, reward, terminated, truncated, info
 
-SCREEN_W, SCREEN_H = 700, 480
-FPS               = 60
-NUDGE_STRENGTH    = 0.5
-NUDGE_DISPLAY_TTL = 20 
+
+SCREEN_W, SCREEN_H = 800, 800
+FPS = 60
+NUDGE_STRENGTH = 0.5
+NUDGE_DISPLAY_TTL = 20
 
 # Colour palette
-BG_TOP    = (15,  20,  35)
-BG_BOT    = (30,  40,  65)
-WHITE     = (240, 245, 255)
-YELLOW    = (255, 215,  50)
-RED       = (220,  60,  60)
-GREEN     = (60,  200, 100)
-GREY      = (120, 130, 150)
-PANEL_BG  = (0,   0,   0, 160)   # RGBA for transparent panel
+BG_TOP = (15, 20, 35)
+BG_BOT = (30, 40, 65)
+WHITE = (240, 245, 255)
+YELLOW = (255, 215, 50)
+RED = (220, 60, 60)
+GREEN = (60, 200, 100)
+GREY = (120, 130, 150)
+PANEL_BG = (0, 0, 0, 160)  # RGBA for transparent panel
 
 # Thresholds (matching gymnasium defaults)
-MAX_ANGLE  = 0.2095
-MAX_CART   = 2.4
+MAX_ANGLE = 0.2095
+MAX_CART = 2.4
 
 
 def lerp_color(a, b, t):
@@ -191,7 +209,7 @@ def draw_status_bar(surface, font_sm, label, value, max_val, x, y, w=160, h=14):
         None
     """
     fraction = min(abs(value) / max_val, 1.0)
-    color    = bar_color(fraction)
+    color = bar_color(fraction)
 
     pygame.draw.rect(surface, (40, 50, 70), (x, y, w, h), border_radius=4)
     if fraction > 0:
@@ -202,8 +220,17 @@ def draw_status_bar(surface, font_sm, label, value, max_val, x, y, w=160, h=14):
     surface.blit(lbl, (x, y - 18))
 
 
-def draw_hud(surface, fonts, episode, step, total_reward,
-             cart_pos, pole_angle, nudge_ttl, last_nudge_dir):
+def draw_hud(
+    surface,
+    fonts,
+    episode,
+    step,
+    total_reward,
+    cart_pos,
+    pole_angle,
+    nudge_ttl,
+    last_nudge_dir,
+):
     """Draw the full HUD overlay onto the given surface.
 
     Renders a semi-transparent stats panel (episode, step, cumulative
@@ -248,20 +275,20 @@ def draw_hud(surface, fonts, episode, step, total_reward,
     ]
     for i, line in enumerate(stats):
         shadow = font_lg.render(line, True, (0, 0, 0))
-        text   = font_lg.render(line, True, WHITE)
+        text = font_lg.render(line, True, WHITE)
         surface.blit(shadow, (pad + 9, pad + 9 + i * 26))
-        surface.blit(text,   (pad + 8, pad + 8 + i * 26))
+        surface.blit(text, (pad + 8, pad + 8 + i * 26))
 
     # --- sensor bars ---
     bar_x = pad + 8
     bar_y = pad + 100
-    draw_status_bar(surface, font_sm, "Cart ", cart_pos,  MAX_CART,  bar_x, bar_y)
+    draw_status_bar(surface, font_sm, "Cart ", cart_pos, MAX_CART, bar_x, bar_y)
     draw_status_bar(surface, font_sm, "Angle", pole_angle, MAX_ANGLE, bar_x, bar_y + 42)
 
     # --- nudge indicator ---
     if nudge_ttl > 0:
-        alpha  = int(255 * (nudge_ttl / NUDGE_DISPLAY_TTL))
-        label  = "◀  NUDGE LEFT" if last_nudge_dir < 0 else "NUDGE RIGHT  ▶"
+        alpha = int(255 * (nudge_ttl / NUDGE_DISPLAY_TTL))
+        label = "◀  NUDGE LEFT" if last_nudge_dir < 0 else "NUDGE RIGHT  ▶"
         nudge_surf = font_lg.render(label, True, YELLOW)
         nudge_surf.set_alpha(alpha)
         nx = SCREEN_W // 2 - nudge_surf.get_width() // 2
@@ -271,10 +298,12 @@ def draw_hud(surface, fonts, episode, step, total_reward,
     legend = ["← → : nudge pole", "R : reset", "Q / Esc : quit"]
     for i, line in enumerate(legend):
         t = font_sm.render(line, True, GREY)
-        surface.blit(t, (SCREEN_W - t.get_width() - pad,
-                         SCREEN_H - pad - (len(legend) - i) * 20))
+        surface.blit(
+            t, (SCREEN_W - t.get_width() - pad, SCREEN_H - pad - (len(legend) - i) * 20)
+        )
 
-def main():
+
+def main(length, weight):
     """Run the interactive CartPole visualisation loop.
 
     Loads the trained PPO model from ``ppo_cartpole_yong_4-26.zip``, opens a Pygame
@@ -298,8 +327,8 @@ def main():
             subsystems (e.g. no available video driver).
     """
     base_env = CustomCartPole()
-    env      = TimeLimit(base_env, max_episode_steps=500)
-
+    env = TimeLimit(base_env, max_episode_steps=500)
+    base_env.set_parameters(length, weight)
     model = PPO.load("ppo_cartpole_yong_4-26", env=env)
 
     # Pygame setup
@@ -308,13 +337,13 @@ def main():
     pygame.display.set_caption("CartPole — Arrow keys to nudge")
     font_lg = pygame.font.SysFont("monospace", 17, bold=True)
     font_sm = pygame.font.SysFont("monospace", 13)
-    clock   = pygame.time.Clock()
+    clock = pygame.time.Clock()
 
-    obs, _         = env.reset()
-    episode        = 1
-    step_count     = 0
-    total_reward   = 0.0
-    nudge_ttl      = 0
+    obs, _ = env.reset()
+    episode = 1
+    step_count = 0
+    total_reward = 0.0
+    nudge_ttl = 0
     last_nudge_dir = 0
 
     running = True
@@ -327,18 +356,18 @@ def main():
                     running = False
                 if event.key == pygame.K_r:
                     obs, _ = env.reset()
-                    step_count   = 0
+                    step_count = 0
                     total_reward = 0.0
 
         pole_nudge = 0.0
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
-            pole_nudge     = -NUDGE_STRENGTH
-            nudge_ttl      = NUDGE_DISPLAY_TTL
+            pole_nudge = -NUDGE_STRENGTH
+            nudge_ttl = NUDGE_DISPLAY_TTL
             last_nudge_dir = -1
         elif keys[pygame.K_RIGHT]:
-            pole_nudge     = NUDGE_STRENGTH
-            nudge_ttl      = NUDGE_DISPLAY_TTL
+            pole_nudge = NUDGE_STRENGTH
+            nudge_ttl = NUDGE_DISPLAY_TTL
             last_nudge_dir = 1
 
         env.unwrapped.state[3] += pole_nudge
@@ -348,7 +377,7 @@ def main():
         obs, reward, terminated, truncated, _ = env.step(action)
 
         total_reward += reward
-        step_count   += 1
+        step_count += 1
         if nudge_ttl > 0:
             nudge_ttl -= 1
 
@@ -365,17 +394,21 @@ def main():
         draw_hud(
             screen,
             (font_lg, font_sm),
-            episode, step_count, total_reward,
-            cart_pos, pole_angle,
-            nudge_ttl, last_nudge_dir,
+            episode,
+            step_count,
+            total_reward,
+            cart_pos,
+            pole_angle,
+            nudge_ttl,
+            last_nudge_dir,
         )
 
         pygame.display.flip()
 
         if terminated or truncated:
-            obs, _       = env.reset()
-            episode     += 1
-            step_count   = 0
+            obs, _ = env.reset()
+            episode += 1
+            step_count = 0
             total_reward = 0.0
 
         clock.tick(FPS)

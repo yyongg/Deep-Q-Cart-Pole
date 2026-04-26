@@ -1,20 +1,40 @@
+"""
+MVC - Model
+
+This module is the reinforcement learning environment inheriting from
+Gymnasium's cartpole. It implements a reward function designed to train the agent
+
+Reward penalizations
+    1. Pole angle (tilt from vertical)
+    2. Cart distance from the center
+
+"""
+
 import numpy as np
-import pygame
-from gymnasium.wrappers import TimeLimit
 from gymnasium.envs.classic_control import CartPoleEnv
-from stable_baselines3 import PPO
+
 
 class CustomCartPole(CartPoleEnv):
-    """Matches the physics used during training (gravity, pole length).
-    No random disturbances here — those were only needed for training."""
+    """
+    This class uses the Gymnasium CartPole environment to allow
+    the controller to set specific physical properties (length, mass) and defines
+    a reward function
+
+    Attributes:
+        gravity (float): Acceleration due to gravity (default 9.8 m/s^2).
+        length (float): Half-length of the pole (distance to center of mass).
+        masspole (float): Mass of the pole in kilograms.
+
+    """
 
     def __init__(self):
+        """Initializes the environment with RGB rendering enabled for the View."""
         super().__init__(render_mode="rgb_array")
         self.gravity = 9.8
-        self.length  = 0.5
-        self.masspole = 0 # default values
+        self.length = 0.5
+        self.masspole = 0  # default values
 
-    def set_parameters(self,length,weight):
+    def set_parameters(self, length, weight):
         """
             Overides the length and weight with the given user input.
 
@@ -28,8 +48,6 @@ class CustomCartPole(CartPoleEnv):
         """
         self.length = length
         self.masspole = weight
-
-
 
     def reset(self, seed=None, options=None):
         """Reset the environment to a fixed upright starting state.
@@ -84,8 +102,8 @@ class CustomCartPole(CartPoleEnv):
         obs, _reward, terminated, truncated, info = super().step(action)
 
         cart_pos, cart_vel, pole_angle, pole_vel = obs
-        norm_angle    = abs(pole_angle) / 0.2095    # gymnasium failure threshold
-        norm_cart_pos = abs(cart_pos)  / 2.4         # gymnasium failure threshold
+        norm_angle = abs(pole_angle) / 0.2095  # gymnasium failure threshold
+        norm_cart_pos = abs(cart_pos) / 2.4  # gymnasium failure threshold
         norm_cart_vel = min(abs(cart_vel) / 3.0, 1.0)  # soft-cap at 3 m/s
 
         reward = (
@@ -96,7 +114,7 @@ class CustomCartPole(CartPoleEnv):
             - 0.30 * max(cart_vel * cart_pos, 0) / (2.4 * 3.0)
         )
         if terminated:
-            reward -= 25.0  
+            reward -= 25.0
 
         obs = np.array(self.state, dtype=np.float32)
         return obs, reward, terminated, truncated, info

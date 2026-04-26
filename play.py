@@ -1,21 +1,23 @@
 import gymnasium as gym
 from stable_baselines3 import PPO
 import numpy as np
+
 # Assuming your MyCustomCartPole is defined in this file or imported
 from gymnasium.envs.classic_control import CartPoleEnv
 
+
 class MyCustomCartPole(CartPoleEnv):
-    def __init__(self, render_mode='human'):
+    def __init__(self, render_mode="human"):
         super().__init__(render_mode=render_mode)
         self.gravity = 9.8
         self.length = 0.75
         self.max_episode_steps = 500
         self.masspole = 10
-        
+
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         # Match your training starting state!
-        self.state = np.array([0, 0, np.pi, 0]) 
+        self.state = np.array([0, 0, np.pi, 0])
         return np.array(self.state, dtype=np.float32), {}
 
     def step(self, action):
@@ -26,8 +28,9 @@ class MyCustomCartPole(CartPoleEnv):
         terminated = bool(abs(cart_pos) > 2.4)
         return next_obs, reward, terminated, truncated, info
 
+
 # 1. Initialize the environment with 'human' render mode
-env = MyCustomCartPole(render_mode='human')
+env = MyCustomCartPole(render_mode="human")
 
 # 2. Load the trained agent
 # Ensure the path matches the filename you saved earlier

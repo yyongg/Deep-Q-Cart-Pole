@@ -1,27 +1,42 @@
-from view import view
-from controller import CartPoleController
+"""
+This module serves as the main execution script for the Deep-Q Cart-Pole
+simulation.
+"""
+
 import pygame
+from view import View
+from controller import CartPoleController
+
 
 def main():
-    # Initialize the View (The Windows and Fonts)
-    app_view = view()
-    
-    # Initialize the Controller and give it the View
-    app_controller = CartPoleController(app_view)
-    
+    """
+    Initializes the View and Controller, then enters a loop that allows
+    the user to configure parameters and run the simulation multiple times
+    until the application is closed.
+
+    Args:
+        None
+    Returns:
+        None
+
+    """
+    # Initialize each class
+    view = View()
+    controller = CartPoleController(view)
+
     program_running = True
     while program_running:
-        # Step 1: Setup parameters (Inputs)
-        app_controller.setup_session()
-        
-        # Step 2: Run the simulation
-        # This will return "RESTART" if you press 'U', or "QUIT" if you close
-        result = app_controller.run_simulation()
-        
+        # set up parameters from user
+        controller.setup_session()
+
+        # Runs the simulation
+        result = controller.run_simulation()
+
         if result == "QUIT":
             program_running = False
-            
-    pygame.quit()
+
+    pygame.quit()  # pylint: disable=no-member
+
 
 if __name__ == "__main__":
-    main()
+    main()  # Executes code
