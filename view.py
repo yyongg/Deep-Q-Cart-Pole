@@ -117,7 +117,7 @@ class view:
 
                     # Length parameter
                     if event.key == pygame.K_l:
-                        result = self.get_input_popup("Enter New Pole Length:")
+                        result = self.get_input_popup("Enter New Pole Length(m):")
                         # ensures input is valid
                         try:
                             self.pole_length = float(result)
@@ -130,7 +130,7 @@ class view:
 
                     # Weight paramter
                     if event.key == pygame.K_p:
-                        result = self.get_input_popup("Enter Weight:")
+                        result = self.get_input_popup("Enter Weight(kg):")
                         try:
                             self.pole_weight = float(result)
                             if self.pole_weight < 0:
@@ -143,7 +143,7 @@ class view:
             self._screen.blit(info_surf, (50, 350))
             
             # Display inputted parameters
-            stats_str = f"Length: {self.pole_length} | Weight: {self.pole_weight}"
+            stats_str = f"Length(m): {self.pole_length} | Weight(kg): {self.pole_weight}"
             stats_surf = self._font.render(stats_str, True, (100, 150, 255))
             self._screen.blit(stats_surf, (50, 400))
 
