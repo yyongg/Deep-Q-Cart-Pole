@@ -24,7 +24,7 @@ class CustomCartPole(CartPoleEnv):
     def __init__(self):
         super().__init__(render_mode="rgb_array")
         self.gravity = 9.8
-        self.length  = 1
+        self.length  = 0.5
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
