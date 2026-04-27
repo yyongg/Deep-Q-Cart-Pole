@@ -1,7 +1,7 @@
 """
 MVC - Controller
 
-This module is the controller for the Cart-Pole simulation. It manages
+This module is the controller for our Cart-Pole simulation. It manages
 the simulation, handles the user inputs such as nudges in the simulation
 interfaces with the model and updates the class View for rendering.
 """
