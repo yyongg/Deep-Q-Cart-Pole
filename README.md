@@ -26,4 +26,5 @@ To run this project on your machine, follow these steps:
    ```bash
    pip install -r requirements.txt
 3. Run the file main.py, enter parameters, and watch
-   Note: The training may take 5-10 minutes
+
+**Note:** The training may take 5-10 minutes
