@@ -21,7 +21,12 @@ This project requires the following Python libraries:
 ### Setup Instructions
 To run this project on your machine, follow these steps:
 
-1. Clone the repository to your local directory.
+1. Clone the repository to your local directory or download the following files:
+   - model.py
+   - view.py
+   - controller.py
+   - main.py
+   - requirements.txt
 2. Install the required dependencies using the provided requirements file:
    ```bash
    pip install -r requirements.txt
