@@ -12,6 +12,7 @@ Reward penalizations
 
 import numpy as np
 from gymnasium.envs.classic_control import CartPoleEnv
+import gymnasium as gym
 
 
 class CustomCartPole(CartPoleEnv):
@@ -27,12 +28,25 @@ class CustomCartPole(CartPoleEnv):
 
     """
 
-    def __init__(self):
+    def __init__(self, render_mode=None):
         """Initializes the environment with RGB rendering enabled for the View."""
-        super().__init__(render_mode="rgb_array")
-        self.gravity = 9.8
-        self.length = 0.5
-        self.masspole = 0  # default values
+        super().__init__(render_mode=render_mode)
+        self.gravity = 9.81
+        self.length = 0.4
+        self.masspole = 0.1
+        self.max_episode_steps = 500 
+
+        high = np.array(
+            [
+                4.8,
+                np.finfo(np.float32).max,
+                1.0,
+                1.0,
+                np.finfo(np.float32).max,
+            ],
+            dtype=np.float32,
+        )
+        self.observation_space = gym.spaces.Box(-high, high, dtype=np.float32)
 
     def set_parameters(self, length, weight):
         """
@@ -50,7 +64,10 @@ class CustomCartPole(CartPoleEnv):
         self.length = length
         self.masspole = weight
 
-    def reset(self,*, seed=None, options=None):
+        self.total_mass = self.masspole + self.masscart
+        self.polemass_length = self.masspole * self.length
+
+    def reset(self, *, seed=None, options=None):
         """Reset the environment to a fixed upright starting state.
 
         Overrides the default random initialisation so that every episode
@@ -68,14 +85,23 @@ class CustomCartPole(CartPoleEnv):
 
         Returns:
             tuple[np.ndarray, dict]: A tuple of:
-                - obs (np.ndarray): Initial observation ``[0, 0, 0, 0]``
-                  representing cart position, cart velocity, pole angle, and
+                - obs (np.ndarray): Initial observation ``[cart_pos, cart_vel, cos(angle), sin(angle), pole_vel]``
+                  representing cart position, cart velocity, pole angle trig, and
                   pole angular velocity respectively.
                 - info (dict): Empty info dictionary.
         """
         super().reset(seed=seed)
-        self.state = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
-        return self.state.copy(), {}
+        self.state = np.array([0, 0, np.pi + np.random.uniform(-0.1, 0.1), 0], dtype=np.float32) 
+
+        obs = np.array([
+            self.state[0], 
+            self.state[1], 
+            np.cos(self.state[2]), 
+            np.sin(self.state[2]), 
+            self.state[3]
+        ], dtype=np.float32)
+        
+        return obs, {}
 
     def step(self, action):
         """Advance the simulation by one timestep with a shaped reward.
@@ -92,34 +118,39 @@ class CustomCartPole(CartPoleEnv):
         Returns:
             tuple[np.ndarray, float, bool, bool, dict]: A tuple of:
                 - obs (np.ndarray): Current observation
-                  ``[cart_pos, cart_vel, pole_angle, pole_vel]``.
-                - reward (float): Shaped reward in the range roughly
-                  ``(-26, 1]``; a penalty of ``-25`` is applied on
-                  termination.
-                - terminated (bool): ``True`` when the pole has fallen or the
-                  cart has left the track boundary.
-                - truncated (bool): ``True`` when the episode step limit is
-                  reached.
+                  ``[cart_pos, cart_vel, cos(angle), sin(angle), pole_vel]``.
+                - reward (float): Shaped reward for swing-up and balancing; 
+                  a penalty of ``-5.0`` is applied on termination.
+                - terminated (bool): ``True`` when the cart has left the track boundary.
+                - truncated (bool): ``True`` when the episode step limit is reached.
                 - info (dict): Auxiliary diagnostic information forwarded from
                   the parent environment.
         """
-        obs, _reward, terminated, truncated, info = super().step(action)
+        next_obs_raw, _, _, truncated, info = super().step(action)
+        
+        cart_pos = next_obs_raw[0]
+        cart_vel = next_obs_raw[1]
+        pole_angle = next_obs_raw[2]
+        pole_vel = next_obs_raw[3]
+        
+        obs = np.array([
+            cart_pos,
+            cart_vel,
+            np.cos(pole_angle),
+            np.sin(pole_angle),
+            pole_vel
+        ], dtype=np.float32)
 
-        cart_pos, cart_vel, pole_angle, pole_vel = obs
-        norm_angle = abs(pole_angle) / 0.2095  # gymnasium failure threshold
-        norm_cart_pos = abs(cart_pos) / 2.4  # gymnasium failure threshold
-        norm_cart_vel = min(abs(cart_vel) / 3.0, 1.0)  # soft-cap at 3 m/s
-
-        reward = (
-            1.0
-            - 0 * pole_vel
-            - 0.50 * norm_angle
-            - 0.45 * norm_cart_pos
-            - 0.10 * norm_cart_vel
-            - 0.30 * max(cart_vel * cart_pos, 0) / (2.4 * 3.0)
-        )
-        if terminated:
-            reward -= 25.0
-
-        obs = np.array(self.state, dtype=np.float32)
+        normalized_angle = abs(((pole_angle + np.pi) % (2 * np.pi)) - np.pi)
+        normalized_pos = abs(cart_pos) * np.pi / 2.4
+        
+        total = ((np.cos(normalized_angle) + 1) / 2) * max(0.0, float(np.cos(normalized_pos))) * np.cos(min(np.pi, abs(pole_vel) / 10.0))
+        
+        reward = float(total - 0.1)
+        terminated = bool(abs(cart_pos) > 2.4)
+        
+        if terminated: 
+            reward -= 5.0
+            terminated = True
+            
         return obs, reward, terminated, truncated, info
