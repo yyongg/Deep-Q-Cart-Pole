@@ -1,6 +1,8 @@
+"""Unit tests using Pytest for our controller"""
+
+from unittest.mock import MagicMock, patch
 import pytest
 import numpy as np
-from unittest.mock import MagicMock, patch
 
 # pytest fixtures intentionally share the same name as the parameter they
 # inject — pylint flags this as W0621 (redefined-outer-name) but it is the
@@ -30,6 +32,7 @@ def controller(mock_view):
         "model": MagicMock(),
         "pygame": MagicMock(),
     }):
+        # pylint: disable=import-outside-toplevel
         from controller import CartPoleController
         return CartPoleController(mock_view)
 
@@ -131,7 +134,7 @@ class TestSetupSessionHappyPath:
         controller.view.get_input_popup.side_effect = ["1.0", "1.0"]
 
         mock_base_env = MagicMock()
-        with patch("controller.CustomCartPole", return_value=mock_base_env) as mock_cls, \
+        with patch("controller.CustomCartPole", return_value=mock_base_env), \
              patch("controller.TimeLimit") as mock_tl, \
              patch("controller.PPO.load"):
             controller.setup_session()
@@ -140,7 +143,6 @@ class TestSetupSessionHappyPath:
 
 
 # 3. setup_session – invalid inputs (retries until valid)
-
 
 class TestSetupSessionInvalidInputs:
     """
@@ -254,12 +256,12 @@ class TestNudgeLogic:
         controller.env.unwrapped.state = state
 
         nudge = 0.0
-        NUDGE_STRENGTH = controller.view.NUDGE_STRENGTH
+        nudge_strength = controller.view.NUDGE_STRENGTH
 
         if direction == "left":
-            nudge = -NUDGE_STRENGTH
+            nudge = -nudge_strength
         elif direction == "right":
-            nudge = NUDGE_STRENGTH
+            nudge = nudge_strength
 
         controller.env.unwrapped.state[3] += nudge
         return controller.env.unwrapped.state
