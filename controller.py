@@ -89,20 +89,41 @@ class CartPoleController:
             print("File not found")
             self.model = None
 
-    def keyboard_inputs(self, obs, step_count, total_reward):
-        # Keyboard inputs for restarting,quiting,etc
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:  # pylint: disable=no-member
-                    return "QUIT"
-                if event.type == pygame.KEYDOWN:  # pylint: disable=no-member
-                    if event.key == (pygame.K_ESCAPE):  # pylint: disable=no-member
-                        return "QUIT"
-                    if event.key == pygame.K_r:  # pylint: disable=no-member
-                        return "RESTART"  # asks for user inputs again
-                    if event.key == pygame.K_r:  # pylint: disable=no-member
-                        obs, _ = self.env.reset()
-                        step_count, total_reward = 0, 0.0
-            return obs,step_count,total_reward
+    def nudges(self, nudge_ttl, last_nudge_dir):
+        """
+        This function checks for user arrow-key input to apply an instant velocity
+        'kick' to the pole. It updates the environment's internal state based on this
+
+        Args:
+            nudge_ttl (int): The current 'Time To Live' (frames remaining) for
+                the nudge visual indicator.
+            last_nudge_dir (int): The direction of the last applied nudge
+                (-1 for left, 1 for right, 0 for none).
+
+        Returns:
+            tuple[int, int, int]: A tuple containing:
+                - action (int): The discrete action (0 or 1) determined by
+                  the model or random sampling.
+                - nudge_ttl (int): Updated display frames for the nudge UI.
+                - last_nudge_dir (int): The direction of the nudge applied
+                  during this frame.
+        """
+        pole_nudge = 0.0
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:  # pylint: disable=no-member
+            pole_nudge = -self.view.thresholds["nudge_strength"]
+            nudge_ttl, last_nudge_dir = self.view.thresholds["nudge_display_ttl"], -1
+        elif keys[pygame.K_RIGHT]:  # pylint: disable=no-member
+            pole_nudge = self.view.thresholds["nudge_strength"]
+            nudge_ttl, last_nudge_dir = self.view.thresholds["nudge_display_ttl"], 1
+
+        self.env.unwrapped.state[3] += pole_nudge
+        obs = np.array(self.env.unwrapped.state, dtype=np.float32)
+        if self.model:
+            action, _ = self.model.predict(obs, deterministic=True)
+        else:
+            action = self.env.action_space.sample()
+        return action, nudge_ttl, last_nudge_dir
 
     def run_simulation(self):
         """
@@ -115,36 +136,40 @@ class CartPoleController:
             A pygame window of the simulation running
         """
         obs, _ = self.env.reset()
-        episode, step_count, total_reward = 1, 0, 0.0
-        nudge_ttl, last_nudge_dir = 0, 0
+        nudge_list = [
+            1,
+            0,
+            0.0,
+            0,
+            0,
+        ]  # index 1: episode , index 2: step_count,
+        # index 3: total_reward, index 4: nudge_ttl, index 5: last_nudge_dir
 
         sim_running = True
         while sim_running:
-            # keyboard inputs for restarting, quitting, etc
-            obs,step_count,total_reward = self.keyboard_inputs(obs, step_count, total_reward)
-            # The nudges
-            pole_nudge = 0.0
-            keys = pygame.key.get_pressed()
-            if keys[pygame.K_LEFT]:  # pylint: disable=no-member
-                pole_nudge = -self.view.nudge_strength
-                nudge_ttl, last_nudge_dir = self.view.nudge_display_ttl, -1
-            elif keys[pygame.K_RIGHT]:  # pylint: disable=no-member
-                pole_nudge = self.view.nudge_strength
-                nudge_ttl, last_nudge_dir = self.view.nudge_display_ttl, 1
+            # Keyboard inputs for restarting,quiting,etc
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:  # pylint: disable=no-member
+                    return "QUIT"
+                if event.type == pygame.KEYDOWN:  # pylint: disable=no-member
+                    if event.key == (pygame.K_ESCAPE):  # pylint: disable=no-member
+                        return "QUIT"
+                    if event.key == pygame.K_r:  # pylint: disable=no-member
+                        return "RESTART"  # asks for user inputs again
+                    if event.key == pygame.K_r:  # pylint: disable=no-member
+                        obs, _ = self.env.reset()
+                        nudge_list[1], nudge_list[2] = 0, 0.0
 
-            self.env.unwrapped.state[3] += pole_nudge
-            obs = np.array(self.env.unwrapped.state, dtype=np.float32)
-            if self.model:
-                action, _ = self.model.predict(obs, deterministic=True)
-            else:
-                action = self.env.action_space.sample()
-
+            # nudges
+            action, nudge_list[3], nudge_list[4] = self.nudges(
+                nudge_list[3], nudge_list[4]
+            )
             # physics update
             obs, reward, terminated, truncated, _ = self.env.step(action)
-            total_reward += reward
-            step_count += 1
-            if nudge_ttl > 0:
-                nudge_ttl -= 1
+            nudge_list[2] += reward
+            nudge_list[1] += 1
+            if nudge_list[3] > 0:
+                nudge_list[3] -= 1
 
             # draws background
             self.view.draw_gradient_bg(self.view.screen)
@@ -160,16 +185,20 @@ class CartPoleController:
 
             # UI overlay - extracts metrics and draws them on the HUD
             cart_pos, _, pole_angle, _ = obs
+
+            # Package all HUD data into a single dictionary
+            hud_data = {
+                "episode": nudge_list[0],
+                "step": nudge_list[1],
+                "reward": nudge_list[2],
+                "cart_pos": cart_pos,
+                "pole_angle": pole_angle,
+                "nudge_ttl": nudge_list[3],
+                "last_nudge_dir": nudge_list[4],
+            }
+
             self.view.draw_hud(
-                self.view.screen,
-                (self.view.font, self.view.font),  # Assuming standard font
-                episode,
-                step_count,
-                total_reward,
-                cart_pos,
-                pole_angle,
-                nudge_ttl,
-                last_nudge_dir,
+                self.view.screen, (self.view.font, self.view.font), hud_data
             )
 
             pygame.display.flip()
@@ -177,8 +206,8 @@ class CartPoleController:
             # resets the program
             if terminated or truncated:
                 obs, _ = self.env.reset()
-                episode += 1
-                step_count, total_reward = 0, 0.0
+                nudge_list[0] += 1
+                nudge_list[1], nudge_list[2] = 0, 0.0
 
             self.view.clock.tick(self.view.fps)
         return None
