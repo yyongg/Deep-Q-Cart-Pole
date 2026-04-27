@@ -1,8 +1,8 @@
 """
 MVC - View
 
-This module handles the 'View' component of the Model-View-Controller (MVC)
-architecture for a Cart-Pole simulation. It manages the Pygame
+This module handles the 'View' component of the Model-View-Controller (MVC) 
+architecture for a Cart-Pole simulation. It manages the Pygame 
 window, renders the simulation, and shows a HUD for metrics for the user nudging feature.
 It also handles user input pop-ups for setting parameters.
 """
@@ -15,7 +15,7 @@ class View:
     Handles the rendering and user interface for the Cart-Pole simulation.
 
     This class manages the Pygame window, draws the environment
-    and provides utility functions for color interpolation
+    and provides utility functions for color interpolation 
     and UI elements like status bars and input pop-ups.
 
     Attributes:
@@ -38,7 +38,7 @@ class View:
         self._clock = pygame.time.Clock()
         self.current_display_text = ""
         self.main_bg_color = (30, 30, 30)
-        # default parameters for pole length and weight
+        #default parameters for pole length and weight
         self.pole_length = -1
         self.pole_weight = -1
         # Color Palette
@@ -153,8 +153,8 @@ class View:
             pygame.draw.line(surface, color, (0, y), (self.screen_width, y))
 
     def draw_status_bar(
-        self, surface, font_sm, label, value, max_val, x, y, w=160, h=14
-    ):
+        self, surface, font_sm, label, value, max_val, x, y, w=160, h=14):
+
         """Draw a labelled horizontal progress bar at the specified position.
 
         The filled portion of the bar is coloured via ``bar_color`` based on how
@@ -281,3 +281,18 @@ class View:
                     self.screen_height - pad - (len(legend) - i) * 20,
                 ),
             )
+
+    @property
+    def screen(self):
+        """Provides public access to the display surface."""
+        return self._screen
+
+    @property
+    def font(self):
+        """Provides public access to the main font."""
+        return self._font
+    
+    @property
+    def clock(self):
+        """Provides public access to the main font."""
+        return self._clock

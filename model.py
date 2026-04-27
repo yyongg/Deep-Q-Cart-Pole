@@ -44,17 +44,21 @@ class CustomCartPole(CartPoleEnv):
             weight: An integer that represents the mass of the pole in kg
 
             Returns:
-                None - sets class attributes of self.length and self.masspole to length and weight respectively
+                None - sets class attributes of self.length and self.masspole to 
+                length and weight respectively
         """
         self.length = length
         self.masspole = weight
 
-    def reset(self, seed=None, options=None):
+    def reset(self,*, seed=None, options=None):
         """Reset the environment to a fixed upright starting state.
 
         Overrides the default random initialisation so that every episode
         begins with the cart and pole perfectly stationary at the origin.
 
+        Note the '*' enforces keyword-only arguments to match the 
+        Gymnasium base class signature.
+        
         Args:
             seed (int | None): Random seed forwarded to the parent reset.
                 Has no practical effect here because the state is hard-coded,
@@ -108,6 +112,7 @@ class CustomCartPole(CartPoleEnv):
 
         reward = (
             1.0
+            - 0 * pole_vel
             - 0.50 * norm_angle
             - 0.45 * norm_cart_pos
             - 0.10 * norm_cart_vel

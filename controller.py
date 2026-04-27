@@ -77,7 +77,9 @@ class CartPoleController:
 
         # Initialize the model
         base_env = CustomCartPole()
-        base_env.set_parameters(length, weight)
+        base_env.set_parameters(
+            length * 0.3048, weight
+        )  # convert inputted(ft) to meters
         self.env = TimeLimit(base_env, max_episode_steps=500)
 
         # Load the weight files from trained model
@@ -86,6 +88,21 @@ class CartPoleController:
         except FileNotFoundError:
             print("File not found")
             self.model = None
+
+    def keyboard_inputs(self, obs, step_count, total_reward):
+        # Keyboard inputs for restarting,quiting,etc
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:  # pylint: disable=no-member
+                    return "QUIT"
+                if event.type == pygame.KEYDOWN:  # pylint: disable=no-member
+                    if event.key == (pygame.K_ESCAPE):  # pylint: disable=no-member
+                        return "QUIT"
+                    if event.key == pygame.K_r:  # pylint: disable=no-member
+                        return "RESTART"  # asks for user inputs again
+                    if event.key == pygame.K_r:  # pylint: disable=no-member
+                        obs, _ = self.env.reset()
+                        step_count, total_reward = 0, 0.0
+            return obs,step_count,total_reward
 
     def run_simulation(self):
         """
@@ -103,28 +120,17 @@ class CartPoleController:
 
         sim_running = True
         while sim_running:
-            # Keyboard inputs for restarting,quiting,etc
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:  # pylint: disable=no-member
-                    return "QUIT"
-                if event.type == pygame.KEYDOWN:  # pylint: disable=no-member
-                    if event.key in (pygame.K_ESCAPE):  # pylint: disable=no-member
-                        return "QUIT"
-                    if event.key == pygame.K_r:  # pylint: disable=no-member
-                        return "RESTART"  # asks for user inputs again
-                    if event.key == pygame.K_r:  # pylint: disable=no-member
-                        obs, _ = self.env.reset()
-                        step_count, total_reward = 0, 0.0
-
+            # keyboard inputs for restarting, quitting, etc
+            obs,step_count,total_reward = self.keyboard_inputs(obs, step_count, total_reward)
             # The nudges
             pole_nudge = 0.0
             keys = pygame.key.get_pressed()
             if keys[pygame.K_LEFT]:  # pylint: disable=no-member
-                pole_nudge = -self.view.NUDGE_STRENGTH
-                nudge_ttl, last_nudge_dir = self.view.NUDGE_DISPLAY_TTL, -1
+                pole_nudge = -self.view.nudge_strength
+                nudge_ttl, last_nudge_dir = self.view.nudge_display_ttl, -1
             elif keys[pygame.K_RIGHT]:  # pylint: disable=no-member
-                pole_nudge = self.view.NUDGE_STRENGTH
-                nudge_ttl, last_nudge_dir = self.view.NUDGE_DISPLAY_TTL, 1
+                pole_nudge = self.view.nudge_strength
+                nudge_ttl, last_nudge_dir = self.view.nudge_display_ttl, 1
 
             self.env.unwrapped.state[3] += pole_nudge
             obs = np.array(self.env.unwrapped.state, dtype=np.float32)
@@ -133,20 +139,26 @@ class CartPoleController:
             else:
                 action = self.env.action_space.sample()
 
+            # physics update
             obs, reward, terminated, truncated, _ = self.env.step(action)
             total_reward += reward
             step_count += 1
             if nudge_ttl > 0:
                 nudge_ttl -= 1
 
+            # draws background
             self.view.draw_gradient_bg(self.view.screen)
 
+            # envrionment rendering
             frame = self.env.render()
-            frame = np.transpose(frame, (1, 0, 2))
+            frame = np.transpose(
+                frame, (1, 0, 2)
+            )  # sets axes for pygame coordinate system
             cart_surface = pygame.surfarray.make_surface(frame)
             cart_surface = pygame.transform.scale(cart_surface, (800, 800))
             self.view.screen.blit(cart_surface, (0, 0))
 
+            # UI overlay - extracts metrics and draws them on the HUD
             cart_pos, _, pole_angle, _ = obs
             self.view.draw_hud(
                 self.view.screen,
@@ -162,9 +174,11 @@ class CartPoleController:
 
             pygame.display.flip()
 
+            # resets the program
             if terminated or truncated:
                 obs, _ = self.env.reset()
                 episode += 1
                 step_count, total_reward = 0, 0.0
 
-            self.view.clock.tick(self.view.FPS)
+            self.view.clock.tick(self.view.fps)
+        return None
