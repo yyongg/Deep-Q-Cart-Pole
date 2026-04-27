@@ -19,7 +19,7 @@ class CartPoleController:
     Manages the interaction between the Cart-Pole Model and View.
 
     The controller handles the setup of the reinforcement learning environment,
-    loading of neural network weights, and the main simulation execution loop.
+    loading of neural network weights, and the main simulation loop.
 
     Attributes:
         view (View): An instance of the View class for rendering and UI.
