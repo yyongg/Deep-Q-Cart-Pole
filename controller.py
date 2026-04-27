@@ -87,22 +87,22 @@ class CartPoleController:
             print(f"Loading existing model from {model_path}...")
             self.model = DQN.load(model_path, env=self.env)
             return False  # No training required
-        else:
-            print("No model found. Initializing a new DQN model...")
-            self.model = DQN(
-                "MlpPolicy",
-                self.env,
-                verbose=1,
-                learning_rate=1e-3,
-                buffer_size=150000,
-                learning_starts=1000,
-                batch_size=128,
-                tau=0.5,
-                target_update_interval=500,
-                exploration_fraction=0.1,
-                exploration_final_eps=0.05,
-            )
-            return True  # Training required!
+
+        print("No model found. Initializing a new DQN model...")
+        self.model = DQN(
+            "MlpPolicy",
+            self.env,
+            verbose=1,
+            learning_rate=1e-3,
+            buffer_size=150000,
+            learning_starts=1000,
+            batch_size=128,
+            tau=0.5,
+            target_update_interval=500,
+            exploration_fraction=0.1,
+            exploration_final_eps=0.05,
+        )
+        return True  # Training required!
 
     def nudges(self, nudge_ttl, last_nudge_dir):
         """
@@ -131,7 +131,7 @@ class CartPoleController:
 
         return action, nudge_ttl, last_nudge_dir
 
-    def run_simulation(self):
+    def run_simulation(self):   # pylint: disable=too-many-locals
         """
         Executes the main interactive simulation loop.
         """
