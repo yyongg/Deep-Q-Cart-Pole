@@ -1,7 +1,7 @@
 # Deep-Q Cart-Pole Visualization
 
 ## Project Summary
-This project implements a reinforcement learning visualization of the Cart-Pole problem using the Model-View-Controller (MVC) architecture. Its trained via Proximal Policy Optimization (PPO) and has an interactive Pygame interface. Users can configure physical parameters such as pole length and mass and apply manual disturbances (nudges) to test the models stability and recovery logic.
+This project implements a reinforcement learning visualization of the Cart-Pole problem using the Model-View-Controller (MVC) architecture. Its trained via Deep-Q Learning and has an interactive Pygame interface. Users can configure physical parameters such as pole length and mass and apply manual disturbances (nudges) to test the models stability and recovery logic.
 
 ## Project Structure
 * **main.py**: This manages the program loop intializing the different classes and calling relevant functions
