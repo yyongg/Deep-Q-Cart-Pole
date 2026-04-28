@@ -37,7 +37,7 @@ class CartPoleController:
 
     def get_user_inputs(self):
         """
-        Uses the View to prompt the user for the pole's physical parameters.
+        Uses the Class View to prompt the user for the pole's physical parameters.
 
         Returns:
             tuple[float, float]: The chosen length (in feet) and weight (in kg).
@@ -106,14 +106,29 @@ class CartPoleController:
 
     def nudges(self, nudge_ttl, last_nudge_dir):
         """
-        Checks for user arrow-key input to apply an instant velocity kick.
-        """
+            This function checks for user arrow-key input to apply an instant velocity
+            'kick' to the pole. It updates the environment's internal state based on this
+
+            Args:
+                nudge_ttl (int): The current 'Time To Live' (frames remaining) for
+                    the nudge visual indicator.
+                last_nudge_dir (int): The direction of the last applied nudge
+                    (-1 for left, 1 for right, 0 for none).
+
+            Returns:
+                tuple[int, int, int]: A tuple containing:
+                    - action (int): The discrete action (0 or 1) determined by
+                    the model or random sampling.
+                    - nudge_ttl (int): Updated display frames for the nudge UI.
+                    - last_nudge_dir (int): The direction of the nudge applied
+                    during this frame.
+            """
         pole_nudge = 0.0
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT]:
+        if keys[pygame.K_LEFT]:  # pylint: disable=no-member
             pole_nudge = -self.view.thresholds["nudge_strength"]
             nudge_ttl, last_nudge_dir = self.view.thresholds["nudge_display_ttl"], -1
-        elif keys[pygame.K_RIGHT]:
+        elif keys[pygame.K_RIGHT]:  # pylint: disable=no-member
             pole_nudge = self.view.thresholds["nudge_strength"]
             nudge_ttl, last_nudge_dir = self.view.thresholds["nudge_display_ttl"], 1
 
@@ -131,9 +146,15 @@ class CartPoleController:
 
         return action, nudge_ttl, last_nudge_dir
 
-    def run_simulation(self):   # pylint: disable=too-many-locals
+    def run_simulation(self):
         """
-        Executes the main interactive simulation loop.
+            Executes the main simulation loop which handles user nudges (Arrow keys), model predictions,
+            physics updates, and view rendering.
+
+            Args:
+                None
+            Returns:
+                A pygame window of the simulation running
         """
         obs, _ = self.env.reset()
         nudge_list = [1, 0, 0.0, 0, 0]
@@ -141,14 +162,14 @@ class CartPoleController:
         sim_running = True
         while sim_running:
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
+                if event.type == pygame.QUIT:  # pylint: disable=no-member
                     return "QUIT"
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
+                if event.type == pygame.KEYDOWN:  # pylint: disable=no-member
+                    if event.key == pygame.K_ESCAPE:  # pylint: disable=no-member
                         return "QUIT"
-                    if event.key == pygame.K_r:
+                    if event.key == pygame.K_r:  # pylint: disable=no-member
                         return "RESTART"
-                    if event.key == pygame.K_t:
+                    if event.key == pygame.K_t:  # pylint: disable=no-member
                         obs, _ = self.env.reset()
                         nudge_list[1], nudge_list[2] = 0, 0.0
 
@@ -169,17 +190,20 @@ class CartPoleController:
             cart_surface = pygame.transform.scale(cart_surface, (800, 800))
             self.view.screen.blit(cart_surface, (0, 0))
 
-            cart_pos = obs[0]
-            cos_angle = obs[2]
-            sin_angle = obs[3]
-            pole_angle = np.arctan2(sin_angle, cos_angle)
+            cart_coordinates = [
+                obs[0],
+                obs[2],
+                obs[3],
+            ]  # index 0: cart_pos, index 1: cos_angle, index 2: sin_angle
 
             hud_data = {
                 "episode": nudge_list[0],
                 "step": nudge_list[1],
                 "reward": nudge_list[2],
-                "cart_pos": cart_pos,
-                "pole_angle": pole_angle,
+                "cart_pos": cart_coordinates[0],
+                "pole_angle": np.arctan2(
+                    cart_coordinates[2], cart_coordinates[1]
+                ),  # pole angle
                 "nudge_ttl": nudge_list[3],
                 "last_nudge_dir": nudge_list[4],
             }

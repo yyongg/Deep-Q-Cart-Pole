@@ -15,7 +15,7 @@ from gymnasium.envs.classic_control import CartPoleEnv
 import gymnasium as gym
 
 
-class CustomCartPole(CartPoleEnv): # pylint: disable=too-many-instance-attributes
+class CustomCartPole(CartPoleEnv):  # pylint: disable=too-many-instance-attributes
     """
     This class uses the Gymnasium CartPole environment to allow
     the controller to set specific physical properties (length, mass) and defines
@@ -39,10 +39,10 @@ class CustomCartPole(CartPoleEnv): # pylint: disable=too-many-instance-attribute
         high = np.array(
             [
                 4.8,
-                np.finfo(np.float32).max, # pylint: disable=no-member
+                np.finfo(np.float32).max,  # pylint: disable=no-member
                 1.0,
                 1.0,
-                np.finfo(np.float32).max, # pylint: disable=no-member
+                np.finfo(np.float32).max,  # pylint: disable=no-member
             ],
             dtype=np.float32,
         )
@@ -85,7 +85,7 @@ class CustomCartPole(CartPoleEnv): # pylint: disable=too-many-instance-attribute
 
         Returns:
             tuple[np.ndarray, dict]: A tuple of:
-                - obs (np.ndarray): Initial observation ``[cart_pos, cart_vel, cos(angle), 
+                - obs (np.ndarray): Initial observation ``[cart_pos, cart_vel, cos(angle),
                   sin(angle), pole_vel]``
                   representing cart position, cart velocity, pole angle trig, and
                   pole angular velocity respectively.
